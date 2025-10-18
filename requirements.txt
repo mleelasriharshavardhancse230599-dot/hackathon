@@ -2,4 +2,7 @@ streamlit
 pymupdf
 python-docx
 pandas
+sentence-transformers
+sqlalchemy
+torch
 requests

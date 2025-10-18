@@ -1,27 +1,43 @@
+# helpers.py
+
 import fitz  # PyMuPDF
-import docx
-import io
+from io import BytesIO
+from docx import Document
 
-def extract_text_from_pdf_bytes(b):
-    doc = fitz.open(stream=b, filetype="pdf")
-    text = []
-    for page in doc:
-        text.append(page.get_text())
-    return "\n".join(text)
+def extract_text(filename, file_bytes):
+    """
+    Extract text from PDF, DOCX, or TXT resumes.
+    
+    Args:
+        filename (str): Name of the file (used to detect file type)
+        file_bytes (bytes): File content as bytes
+    Returns:
+        str: Extracted text
+    """
+    text = ""
+    filename_lower = filename.lower()
 
-def extract_text_from_docx_bytes(b):
-    with io.BytesIO(b) as bio:
-        doc = docx.Document(bio)
-        return "\n".join(p.text for p in doc.paragraphs)
-
-def extract_text(filename, raw_bytes):
-    fn = filename.lower()
     try:
-        if fn.endswith(".pdf"):
-            return extract_text_from_pdf_bytes(raw_bytes)
-        elif fn.endswith(".docx"):
-            return extract_text_from_docx_bytes(raw_bytes)
+        if filename_lower.endswith(".pdf"):
+            # Load PDF from bytes
+            pdf = fitz.open(stream=file_bytes, filetype="pdf")
+            for page in pdf:
+                text += page.get_text()
+            pdf.close()
+
+        elif filename_lower.endswith(".docx"):
+            # Load DOCX from bytes
+            doc = Document(BytesIO(file_bytes))
+            for para in doc.paragraphs:
+                text += para.text + "\n"
+
+        elif filename_lower.endswith(".txt"):
+            text = file_bytes.decode('utf-8', errors='ignore')
+
         else:
-            return raw_bytes.decode("utf-8", errors="ignore")
-    except Exception:
-        return ""
+            text = ""
+    except Exception as e:
+        print(f"Error extracting text from {filename}: {e}")
+        text = ""
+
+    return text

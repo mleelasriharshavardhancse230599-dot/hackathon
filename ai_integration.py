@@ -1,11 +1,17 @@
 from sentence_transformers import SentenceTransformer, util
 import re
+import hashlib
 
-# Load lightweight embedding model
+# Load model
 model = SentenceTransformer('all-MiniLM-L6-v2')
 
+# Cache dictionary
+cache = {}
 
-# -----------  Helper Functions  -----------
+# ---------- Helper Functions ----------
+def get_hash(resume_text, job_text):
+    key = resume_text + job_text
+    return hashlib.md5(key.encode('utf-8')).hexdigest()
 
 def extract_email(text):
     match = re.search(r'[\w\.-]+@[\w\.-]+\.\w+', text)
@@ -17,47 +23,39 @@ def extract_phone(text):
 
 def extract_name(text):
     lines = text.strip().split("\n")
-    for line in lines[:5]:  # look only in first few lines
+    for line in lines[:5]:
         if len(line.split()) <= 5 and not re.search(r'\d', line):
             return line.strip().title()
     return None
 
 def extract_skills(text):
-    skillset = [
-        "Python", "Java", "C++", "C#", "SQL", "NoSQL", "R", "Power BI", "Tableau",
-        "HTML", "CSS", "JavaScript", "React", "Node.js", "Angular", "AWS",
-        "Azure", "GCP", "Machine Learning", "Deep Learning", "AI", "NLP",
-        "Docker", "Kubernetes", "Git", "Linux", "Excel", "Data Analysis"
-    ]
-    found = []
-    for skill in skillset:
-        if re.search(rf'\b{re.escape(skill)}\b', text, re.I):
-            found.append(skill)
+    skillset = ["Python","Java","C++","SQL","R","React","Node.js","Machine Learning",
+                "AI","AWS","HTML","CSS","JavaScript","Docker","Kubernetes","Git"]
+    found = [s for s in skillset if re.search(rf'\b{re.escape(s)}\b', text, re.I)]
     return list(set(found))
 
 def extract_education(text):
-    education_keywords = ["B.Tech", "B.E", "Bachelor", "Master", "MBA", "M.Tech", "PhD", "BSc", "MSc"]
-    matches = [edu for edu in education_keywords if re.search(rf"\b{edu}\b", text, re.I)]
-    return matches
+    degrees = ["B.Tech","B.E","Bachelor","Master","MBA","M.Tech","PhD","BSc","MSc"]
+    return [d for d in degrees if re.search(rf"\b{d}\b", text, re.I)]
 
 def extract_experience(text):
     exp = re.findall(r'(\d+)\+?\s*(?:year|yr|years|yrs)', text, re.I)
-    if exp:
-        years = max([int(e) for e in exp])
-        return f"{years} years"
-    return "Not specified"
+    return f"{max([int(e) for e in exp])} years" if exp else "Not specified"
 
+# ---------- Main Function ----------
+def match_resume_to_job(resume_text, job_text, weights=None, job_role=None):
+    # Check cache first
+    key = get_hash(resume_text, job_text)
+    if key in cache:
+        return cache[key]
 
-# -----------  Main Function  -----------
-
-def match_resume_to_job(resume_text, job_text, weights=None, mode="local", api_url=None):
-    """
-    Real AI-based resume-job matching + Info Extraction
-    """
-    if not resume_text.strip() or not job_text.strip():
-        return {"score": 0, "parsed": {}, "error": "Empty text"}
-
-    weights = weights or {"sim": 0.6, "skills": 0.3, "exp": 0.1}
+    # Default weights
+    role_weights = {
+        "Software Developer": {"sim":0.2, "skills":0.7, "exp":0.1},
+        "Data Analyst": {"sim":0.3, "skills":0.6, "exp":0.1},
+        "ML Engineer": {"sim":0.5, "skills":0.4, "exp":0.1},
+    }
+    weights = weights or role_weights.get(job_role, {"sim":0.4, "skills":0.5, "exp":0.1})
 
     # Semantic similarity
     resume_emb = model.encode(resume_text, convert_to_tensor=True)
@@ -71,15 +69,15 @@ def match_resume_to_job(resume_text, job_text, weights=None, mode="local", api_u
     total = len(set(job_skills)) or 1
     skill_score = overlap / total
 
-    # Experience score
+    # Experience bonus
     exp_text = extract_experience(resume_text)
-    exp_match = 0.1 if exp_text != "Not specified" else 0.05
+    exp_score = 0.1 if exp_text != "Not specified" else 0.05
 
     # Weighted score
-    score = (similarity * weights["sim"]) + (skill_score * weights["skills"]) + (exp_match * weights["exp"])
-    score = round(score, 2)
+    score = (similarity*weights["sim"]) + (skill_score*weights["skills"]) + (exp_score*weights["exp"])
+    score = round(score,2)
 
-    # Extract personal info
+    # Parse candidate info
     parsed = {
         "name": extract_name(resume_text),
         "email": extract_email(resume_text),
@@ -87,9 +85,13 @@ def match_resume_to_job(resume_text, job_text, weights=None, mode="local", api_u
         "skills": resume_skills,
         "education": extract_education(resume_text),
         "experience": exp_text,
-        "semantic_similarity": round(similarity, 2),
-        "skill_overlap": round(skill_score, 2),
-        "experience_bonus": exp_match
+        "semantic_similarity": round(similarity,2),
+        "skill_overlap": round(skill_score,2),
+        "experience_bonus": exp_score
     }
 
-    return {"score": score, "parsed": parsed}
+    result = {"score": score, "parsed": parsed}
+
+    # Save to cache
+    cache[key] = result
+    return result
