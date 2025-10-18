@@ -1,11 +1,19 @@
-<!-- README.md -->
+# 🤖 Smart Recruitment Assistant — Frontend
 
-<p align="center">
-  <h1>POWER CODE RANGERS</h1>
-</p>
+This Streamlit app forms the **frontend module** of the *Smart Recruitment Assistant* project for your GenAI Automation Hackathon.
 
-## Team Members
+## 🎯 Features
+- Upload multiple resumes (PDF, DOCX, TXT)
+- Paste a job description
+- AI-based scoring and shortlisting
+- Configurable integration: local dummy or backend API
+- Download shortlist results as CSV
 
-- `"Om Prasad"`
-- `"Harsha Vardhan"`
-- `"Aditya"`
+---
+
+## 🛠️ Setup & Run
+
+### 1. Clone & Enter
+```bash
+git clone <repo-url>
+cd frontend
